@@ -16,7 +16,7 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Types
 
-@docs Req, Body, Part, StringReqError, BytesReqError
+@docs Req, Body, Part
 
 
 # Methods
