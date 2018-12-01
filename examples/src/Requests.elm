@@ -47,7 +47,6 @@ getRepoWithDecodeError : String -> String -> Task Error Repo
 getRepoWithDecodeError userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
         |> Req.stringTask (resolve buggyRepoDecoder)
-        |> Task.map (Debug.log "repo")
 
 
 resolve : Decoder a -> Req.Req -> Http.Response String -> Result Error a
@@ -126,7 +125,6 @@ type ErrorDetails
     | BadStatus Int String (Dict String String) ErrorInfo
     | BadBody String
     | BadErrorBody String
-    | Bug String
 
 
 type alias ErrorInfo =
