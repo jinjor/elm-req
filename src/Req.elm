@@ -5,6 +5,7 @@ module Req exposing
     , withHeader, withTimeout, allowCookiesFromOtherDomains
     , stringPart, filePart, bytesPart
     , stringTask, bytesTask, whateverTask, toTask
+    , simplyResolveJson
     , trackString, trackBytes, trackWhatever, track
     )
 
@@ -38,12 +39,17 @@ module Req exposing
 
 # Task
 
-@docs stringTask, jsonTask, bytesTask, whateverTask, toTask
+@docs stringTask, bytesTask, whateverTask, toTask
+
+
+# Resolver
+
+@docs simplyResolveJson
 
 
 # Tracking
 
-@docs trackString, trackJson, trackBytes, trackWhatever, track
+@docs trackString, trackBytes, trackWhatever, track
 
 -}
 
@@ -268,6 +274,35 @@ toTask resolver req =
         , resolver = resolver
         , timeout = req.timeout
         }
+
+
+
+-- RESOLVER
+
+
+{-| -}
+simplyResolveJson : Json.Decode.Decoder a -> Req -> Http.Response String -> Result Http.Error a
+simplyResolveJson decoder _ res =
+    case res of
+        Http.BadUrl_ url ->
+            Err (Http.BadUrl url)
+
+        Http.Timeout_ ->
+            Err Http.Timeout
+
+        Http.NetworkError_ ->
+            Err Http.NetworkError
+
+        Http.BadStatus_ metadata body ->
+            Err (Http.BadStatus metadata.statusCode)
+
+        Http.GoodStatus_ _ body ->
+            case Json.Decode.decodeString decoder body of
+                Ok a ->
+                    Ok a
+
+                Err e ->
+                    Err (Http.BadBody (Json.Decode.errorToString e))
 
 
 
