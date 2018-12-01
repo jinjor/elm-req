@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Browser
+import Dict
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
@@ -43,7 +44,7 @@ type alias Model =
 type State
     = Waiting
     | Loaded ( User, Repo )
-    | Error Req.StringReqError
+    | Error Requests.Error
 
 
 init : () -> ( Model, Cmd Msg )
@@ -61,7 +62,7 @@ init flags =
 
 
 type Msg
-    = Received (Result Req.StringReqError ( User, Repo ))
+    = Received (Result Requests.Error ( User, Repo ))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -98,16 +99,43 @@ view model =
 
         Error e ->
             div []
-                [ h1 [] [ text "Error!" ]
-                , h2 [] [ text "Request" ]
-                , table []
-                    [ tr [] [ th [] [ text "URL" ], td [] [ text e.req.url ] ]
-                    , tr [] [ th [] [ text "Method" ], td [] [ text e.req.method ] ]
-                    , tr [] [ th [] [ text "Headers" ], td [] [ text (Debug.toString e.req.headers) ] ]
-                    , tr [] [ th [] [ text "Body" ], td [] [ text (Debug.toString e.req.body) ] ]
-                    ]
-                , h2 [] [ text "Response" ]
-                , p [] [ text (Debug.toString e.res) ]
-                , h2 [] [ text "Decode Error" ]
-                , p [] [ text (Debug.toString e.decodeError) ]
+                [ h2 [] [ text ("Error at " ++ e.method ++ " " ++ e.url) ]
+                , p [] <|
+                    case e.details of
+                        Requests.BadUrl url ->
+                            [ text ("Bad url: " ++ url) ]
+
+                        Requests.Timeout ->
+                            [ text "Timeout" ]
+
+                        Requests.NetworkError ->
+                            [ text "Network error" ]
+
+                        Requests.BadStatus code message headers info ->
+                            [ div [] [ text ("Bad status: " ++ String.fromInt code ++ " " ++ message) ]
+                            , div [] [ text info.message ]
+                            , table []
+                                (headers
+                                    |> Dict.toList
+                                    |> List.map
+                                        (\( k, v ) ->
+                                            tr [] [ th [] [ text k ], td [] [ text v ] ]
+                                        )
+                                )
+                            ]
+
+                        Requests.BadBody message ->
+                            [ div [] [ text "Bad body" ]
+                            , pre [] [ text message ]
+                            ]
+
+                        Requests.BadErrorBody message ->
+                            [ div [] [ text "Bad Error Body" ]
+                            , pre [] [ text message ]
+                            ]
+
+                        Requests.Bug message ->
+                            [ div [] [ text "Bug" ]
+                            , pre [] [ text message ]
+                            ]
                 ]
