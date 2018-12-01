@@ -461,7 +461,7 @@ trackBytes tracker toMsg resolve req =
 -}
 trackWhatever :
     String
-    -> (Result Never () -> msg)
+    -> (Result x () -> msg)
     -> Req
     -> Cmd msg
 trackWhatever tracker toMsg req =

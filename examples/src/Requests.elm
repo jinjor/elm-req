@@ -8,13 +8,22 @@ module Requests exposing
     , getRepoWithDecodeError
     , getUser
     , getUserSimple
+    , upload
     )
 
 import Dict exposing (..)
+import File exposing (File)
 import Http
 import Json.Decode as D exposing (Decoder)
 import Req
 import Task exposing (Task)
+
+
+upload : String -> (Result Http.Error () -> msg) -> List File -> Cmd msg
+upload tracker toMsg files =
+    Req.post "/"
+        |> Req.withMultipartBody (List.map (Req.filePart "files[]") files)
+        |> Req.trackWhatever tracker toMsg
 
 
 getUserSimple : String -> Task Http.Error User
