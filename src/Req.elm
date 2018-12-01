@@ -1,11 +1,11 @@
 module Req exposing
-    ( Req, Body(..), Part(..)
+    ( Req, Body(..), Part(..), Error(..)
     , init, get, post, put, patch, delete
     , withStringBody, withJsonBody, withFileBody, withBytesBody, withMultipartBody
     , stringPart, filePart, bytesPart
     , withHeader, withTimeout, allowCookiesFromOtherDomains
     , stringTask, bytesTask, whateverTask, toTask
-    , simplyResolveJson
+    , simplyResolveJson, resolveJson
     , trackString, trackBytes, trackWhatever, track
     )
 
@@ -16,7 +16,7 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Types
 
-@docs Req, Body, Part
+@docs Req, Body, Part, Error
 
 
 # Methods
@@ -46,7 +46,7 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Resolver
 
-@docs simplyResolveJson
+@docs simplyResolveJson, resolveJson
 
 
 # Tracking
@@ -97,6 +97,16 @@ type Part
     = StringPart String String
     | FilePart String File
     | BytesPart String String Bytes
+
+
+{-| Similar to `Http.Error` but have more informarion
+-}
+type Error a
+    = BadUrl String
+    | Timeout
+    | NetworkError
+    | BadStatus Http.Metadata a
+    | BadBody Http.Metadata String
 
 
 
@@ -337,6 +347,58 @@ simplyResolveJson decoder _ res =
 
                 Err e ->
                     Err (Http.BadBody (Json.Decode.errorToString e))
+
+
+{-| Make a resolver function that returns `Req.Error`.
+
+    getUserSimple : String -> Task Http.Error User
+    getUserSimple userName =
+        Req.get ("https://api.github.com/users/" ++ userName)
+            |> Req.stringTask
+                (Req.resolveJson
+                    { decoder = userDecoder
+                    , errorDecoder = errorDecoder
+                    }
+                )
+
+    - First decoder is used for good body
+    - First decoder is used for bad body
+    - Decoding errors of both go to BadBody
+
+-}
+resolveJson :
+    { decoder : Json.Decode.Decoder a
+    , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
+    }
+    -> Req
+    -> Http.Response String
+    -> Result (Error e) a
+resolveJson { decoder, errorDecoder } req res =
+    case res of
+        Http.BadUrl_ url ->
+            Err (BadUrl url)
+
+        Http.Timeout_ ->
+            Err Timeout
+
+        Http.NetworkError_ ->
+            Err NetworkError
+
+        Http.BadStatus_ metadata body ->
+            case Json.Decode.decodeString (errorDecoder metadata) body of
+                Ok a ->
+                    Err (BadStatus metadata a)
+
+                Err e ->
+                    Err (BadBody metadata (Json.Decode.errorToString e))
+
+        Http.GoodStatus_ metadata body ->
+            case Json.Decode.decodeString decoder body of
+                Ok a ->
+                    Ok a
+
+                Err e ->
+                    Err (BadBody metadata (Json.Decode.errorToString e))
 
 
 

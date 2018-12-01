@@ -6,7 +6,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Req
-import Requests exposing (Repo, User)
+import Requests exposing (ErrorInfo, Repo, User)
 import Task
 
 
@@ -45,7 +45,7 @@ type State
     = Init
     | Waiting
     | Loaded ( User, Repo )
-    | Error Requests.Error
+    | Error (Req.Error ErrorInfo)
 
 
 init : () -> ( Model, Cmd Msg )
@@ -63,7 +63,7 @@ type Msg
     = Send
     | SendWith404
     | SendWithDecodeError
-    | Received (Result Requests.Error ( User, Repo ))
+    | Received (Result (Req.Error ErrorInfo) ( User, Repo ))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -138,39 +138,31 @@ viewState model =
             text "success"
 
         Error e ->
-            div []
-                [ h2 [] [ text ("Error at " ++ e.method ++ " " ++ e.url) ]
-                , p [] <|
-                    case e.details of
-                        Requests.BadUrl url ->
-                            [ text ("Bad url: " ++ url) ]
+            div [] <|
+                case e of
+                    Req.BadUrl url ->
+                        [ text ("Bad url: " ++ url) ]
 
-                        Requests.Timeout ->
-                            [ text "Timeout" ]
+                    Req.Timeout ->
+                        [ text "Timeout" ]
 
-                        Requests.NetworkError ->
-                            [ text "Network error" ]
+                    Req.NetworkError ->
+                        [ text "Network error" ]
 
-                        Requests.BadStatus code message headers info ->
-                            [ div [] [ text ("Bad status: " ++ String.fromInt code ++ " " ++ message) ]
-                            , div [] [ text info.message ]
-                            , table []
-                                (headers
-                                    |> Dict.toList
-                                    |> List.map
-                                        (\( k, v ) ->
-                                            tr [] [ th [] [ text k ], td [] [ text v ] ]
-                                        )
-                                )
-                            ]
+                    Req.BadStatus meta info ->
+                        [ div [] [ text ("Bad status: " ++ String.fromInt meta.statusCode ++ " " ++ meta.statusText) ]
+                        , div [] [ text info.message ]
+                        , table []
+                            (meta.headers
+                                |> Dict.toList
+                                |> List.map
+                                    (\( k, v ) ->
+                                        tr [] [ th [] [ text k ], td [] [ text v ] ]
+                                    )
+                            )
+                        ]
 
-                        Requests.BadBody message ->
-                            [ div [] [ text "Bad body" ]
-                            , pre [] [ text message ]
-                            ]
-
-                        Requests.BadErrorBody message ->
-                            [ div [] [ text "Bad Error Body" ]
-                            , pre [] [ text message ]
-                            ]
-                ]
+                    Req.BadBody meta message ->
+                        [ div [] [ text "Bad body" ]
+                        , pre [] [ text message ]
+                        ]

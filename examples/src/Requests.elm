@@ -1,7 +1,5 @@
 module Requests exposing
-    ( Error
-    , ErrorDetails(..)
-    , ErrorInfo
+    ( ErrorInfo
     , Issue
     , Repo
     , User
@@ -31,60 +29,31 @@ getRepoSimple userName repoName =
         |> Req.stringTask (Req.simplyResolveJson repoDecoder)
 
 
-getUser : String -> Task Error User
+getUser : String -> Task (Req.Error ErrorInfo) User
 getUser userName =
     Req.get ("https://api.github.com/users/" ++ userName)
-        |> Req.stringTask (resolve userDecoder)
+        |> Req.stringTask
+            (Req.resolveJson
+                { decoder = userDecoder, errorDecoder = errorDecoder }
+            )
 
 
-getRepo : String -> String -> Task Error Repo
+getRepo : String -> String -> Task (Req.Error ErrorInfo) Repo
 getRepo userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.stringTask (resolve repoDecoder)
+        |> Req.stringTask
+            (Req.resolveJson
+                { decoder = repoDecoder, errorDecoder = errorDecoder }
+            )
 
 
-getRepoWithDecodeError : String -> String -> Task Error Repo
+getRepoWithDecodeError : String -> String -> Task (Req.Error ErrorInfo) Repo
 getRepoWithDecodeError userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.stringTask (resolve buggyRepoDecoder)
-
-
-resolve : Decoder a -> Req.Req -> Http.Response String -> Result Error a
-resolve decoder req res =
-    case res of
-        Http.BadUrl_ url ->
-            err req (BadUrl url)
-
-        Http.Timeout_ ->
-            err req Timeout
-
-        Http.NetworkError_ ->
-            err req NetworkError
-
-        Http.BadStatus_ metadata body ->
-            case D.decodeString (errorDecoder metadata.statusCode) body of
-                Ok info ->
-                    err req (BadStatus metadata.statusCode metadata.statusText metadata.headers info)
-
-                Err e ->
-                    err req (BadErrorBody (D.errorToString e))
-
-        Http.GoodStatus_ _ body ->
-            case D.decodeString decoder body of
-                Ok a ->
-                    Ok a
-
-                Err e ->
-                    err req (BadBody (D.errorToString e))
-
-
-err : Req.Req -> ErrorDetails -> Result Error a
-err req details =
-    Err
-        { method = req.method
-        , url = req.url
-        , details = details
-        }
+        |> Req.stringTask
+            (Req.resolveJson
+                { decoder = buggyRepoDecoder, errorDecoder = errorDecoder }
+            )
 
 
 type alias Repo =
@@ -109,22 +78,6 @@ type alias User =
     { login : String
     , avatarUrl : String
     }
-
-
-type alias Error =
-    { method : String
-    , url : String
-    , details : ErrorDetails
-    }
-
-
-type ErrorDetails
-    = BadUrl String
-    | Timeout
-    | NetworkError
-    | BadStatus Int String (Dict String String) ErrorInfo
-    | BadBody String
-    | BadErrorBody String
 
 
 type alias ErrorInfo =
@@ -164,7 +117,7 @@ buggyRepoDecoder =
         (D.field "watchers_count" D.int)
 
 
-errorDecoder : Int -> Decoder ErrorInfo
-errorDecoder status =
+errorDecoder : Http.Metadata -> Decoder ErrorInfo
+errorDecoder _ =
     D.map ErrorInfo
         (D.field "message" D.string)
