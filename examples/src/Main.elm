@@ -173,9 +173,4 @@ viewState model =
                             [ div [] [ text "Bad Error Body" ]
                             , pre [] [ text message ]
                             ]
-
-                        Requests.Bug message ->
-                            [ div [] [ text "Bug" ]
-                            , pre [] [ text message ]
-                            ]
                 ]
