@@ -51,12 +51,10 @@ getRepo userName repoName =
 Use `Req.ReqWithError` to get full information of the request.
 
 ```elm
-type Error a
-    = BadUrl String
-    | Timeout
-    | NetworkError
-    | BadStatus Http.Metadata a
-    | BadBody Http.Metadata String
+type alias ReqWithError a =
+    { request : Req
+    , error : Error a
+    }
 
 
 getRepo : String -> String -> Task (Req.ReqWithError ErrorInfo) Repo
