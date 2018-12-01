@@ -1,11 +1,11 @@
 module Req exposing
-    ( Req, Body(..), Part(..), Error(..)
+    ( Req, Body(..), Part(..), Error(..), ReqWithError
     , init, get, post, put, patch, delete
     , withStringBody, withJsonBody, withFileBody, withBytesBody, withMultipartBody
     , stringPart, filePart, bytesPart
     , withHeader, withTimeout, allowCookiesFromOtherDomains
     , stringTask, bytesTask, whateverTask, toTask
-    , simplyResolveJson, resolveJson
+    , simplyResolveJson, resolveJson, resolveJsonWithReq
     , trackString, trackBytes, trackWhatever, track
     )
 
@@ -16,7 +16,7 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Types
 
-@docs Req, Body, Part, Error
+@docs Req, Body, Part, Error, ReqWithError
 
 
 # Methods
@@ -46,7 +46,7 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Resolver
 
-@docs simplyResolveJson, resolveJson
+@docs simplyResolveJson, resolveJson, resolveJsonWithReq
 
 
 # Tracking
@@ -107,6 +107,14 @@ type Error a
     | NetworkError
     | BadStatus Http.Metadata a
     | BadBody Http.Metadata String
+
+
+{-| Req with Error
+-}
+type alias ReqWithError a =
+    { request : Req
+    , error : Error a
+    }
 
 
 
@@ -399,6 +407,20 @@ resolveJson { decoder, errorDecoder } req res =
 
                 Err e ->
                     Err (BadBody metadata (Json.Decode.errorToString e))
+
+
+{-| resolve Json and return Error with Req.
+-}
+resolveJsonWithReq :
+    { decoder : Json.Decode.Decoder a
+    , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
+    }
+    -> Req
+    -> Http.Response String
+    -> Result (ReqWithError e) a
+resolveJsonWithReq options req res =
+    resolveJson options req res
+        |> Result.mapError (ReqWithError req)
 
 
 

@@ -29,29 +29,29 @@ getRepoSimple userName repoName =
         |> Req.stringTask (Req.simplyResolveJson repoDecoder)
 
 
-getUser : String -> Task (Req.Error ErrorInfo) User
+getUser : String -> Task (Req.ReqWithError ErrorInfo) User
 getUser userName =
     Req.get ("https://api.github.com/users/" ++ userName)
         |> Req.stringTask
-            (Req.resolveJson
+            (Req.resolveJsonWithReq
                 { decoder = userDecoder, errorDecoder = errorDecoder }
             )
 
 
-getRepo : String -> String -> Task (Req.Error ErrorInfo) Repo
+getRepo : String -> String -> Task (Req.ReqWithError ErrorInfo) Repo
 getRepo userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
         |> Req.stringTask
-            (Req.resolveJson
+            (Req.resolveJsonWithReq
                 { decoder = repoDecoder, errorDecoder = errorDecoder }
             )
 
 
-getRepoWithDecodeError : String -> String -> Task (Req.Error ErrorInfo) Repo
+getRepoWithDecodeError : String -> String -> Task (Req.ReqWithError ErrorInfo) Repo
 getRepoWithDecodeError userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
         |> Req.stringTask
-            (Req.resolveJson
+            (Req.resolveJsonWithReq
                 { decoder = buggyRepoDecoder, errorDecoder = errorDecoder }
             )
 

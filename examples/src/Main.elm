@@ -45,7 +45,7 @@ type State
     = Init
     | Waiting
     | Loaded ( User, Repo )
-    | Error (Req.Error ErrorInfo)
+    | Error (Req.ReqWithError ErrorInfo)
 
 
 init : () -> ( Model, Cmd Msg )
@@ -63,7 +63,7 @@ type Msg
     = Send
     | SendWith404
     | SendWithDecodeError
-    | Received (Result (Req.Error ErrorInfo) ( User, Repo ))
+    | Received (Result (Req.ReqWithError ErrorInfo) ( User, Repo ))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -137,32 +137,35 @@ viewState model =
         Loaded ( user, repo ) ->
             text "success"
 
-        Error e ->
-            div [] <|
-                case e of
-                    Req.BadUrl url ->
-                        [ text ("Bad url: " ++ url) ]
+        Error { request, error } ->
+            div []
+                [ h2 [] [ text ("Problem on " ++ request.method ++ " " ++ request.url) ]
+                , p [] <|
+                    case error of
+                        Req.BadUrl url ->
+                            [ text ("Bad url: " ++ url) ]
 
-                    Req.Timeout ->
-                        [ text "Timeout" ]
+                        Req.Timeout ->
+                            [ text "Timeout" ]
 
-                    Req.NetworkError ->
-                        [ text "Network error" ]
+                        Req.NetworkError ->
+                            [ text "Network error" ]
 
-                    Req.BadStatus meta info ->
-                        [ div [] [ text ("Bad status: " ++ String.fromInt meta.statusCode ++ " " ++ meta.statusText) ]
-                        , div [] [ text info.message ]
-                        , table []
-                            (meta.headers
-                                |> Dict.toList
-                                |> List.map
-                                    (\( k, v ) ->
-                                        tr [] [ th [] [ text k ], td [] [ text v ] ]
-                                    )
-                            )
-                        ]
+                        Req.BadStatus meta info ->
+                            [ div [] [ text ("Bad status: " ++ String.fromInt meta.statusCode ++ " " ++ meta.statusText) ]
+                            , div [] [ text info.message ]
+                            , table []
+                                (meta.headers
+                                    |> Dict.toList
+                                    |> List.map
+                                        (\( k, v ) ->
+                                            tr [] [ th [] [ text k ], td [] [ text v ] ]
+                                        )
+                                )
+                            ]
 
-                    Req.BadBody meta message ->
-                        [ div [] [ text "Bad body" ]
-                        , pre [] [ text message ]
-                        ]
+                        Req.BadBody meta message ->
+                            [ div [] [ text "Bad body" ]
+                            , pre [] [ text message ]
+                            ]
+                ]
