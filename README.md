@@ -8,6 +8,7 @@ An experimental alternative for [elm/http](https://github.com/elm/http).
 
 ## Motivation
 
+- Use Tasks more.
 - Use `put` `patch` and `delete`.
 - Build options one by one.
 - Get full information in requests/responses to describe errors.
