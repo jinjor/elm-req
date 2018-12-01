@@ -1,11 +1,11 @@
 module Req exposing
-    ( Req, Body(..), Part(..), StringReqError, BytesReqError
+    ( Req, Body(..), Part(..)
     , get, post, put, patch, delete
     , withStringBody, withJsonBody, withFileBody, withBytesBody, withMultipartBody
     , withHeader, withTimeout, allowCookiesFromOtherDomains
     , stringPart, filePart, bytesPart
-    , stringTask, jsonTask, bytesTask, whateverTask, toTask
-    , trackString, trackJson, trackBytes, trackWhatever, track
+    , stringTask, bytesTask, whateverTask, toTask
+    , trackString, trackBytes, trackWhatever, track
     )
 
 {-|
@@ -86,22 +86,6 @@ type Part
     = StringPart String String
     | FilePart String File
     | BytesPart String String Bytes
-
-
-{-| -}
-type alias StringReqError =
-    { req : Req
-    , res : Http.Response String
-    , decodeError : Maybe Json.Decode.Error
-    }
-
-
-{-| -}
-type alias BytesReqError =
-    { req : Req
-    , res : Http.Response Bytes
-    , decodeError : Bool
-    }
 
 
 
@@ -243,75 +227,27 @@ bytesPart key mime bytes =
 
 {-| -}
 stringTask :
-    Req
-    -> Task StringReqError String
-stringTask req =
-    toTask
-        (Http.stringResolver
-            (\res ->
-                case res of
-                    Http.GoodStatus_ meta body ->
-                        Ok body
-
-                    _ ->
-                        Err { req = req, res = res, decodeError = Nothing }
-            )
-        )
-        req
-
-
-{-| -}
-jsonTask :
-    Json.Decode.Decoder a
+    (Req -> Http.Response String -> Result x a)
     -> Req
-    -> Task StringReqError a
-jsonTask decoder req =
-    toTask
-        (Http.stringResolver
-            (\res ->
-                case res of
-                    Http.GoodStatus_ meta body ->
-                        Result.mapError
-                            (\err -> { req = req, res = res, decodeError = Just err })
-                            (Json.Decode.decodeString decoder body)
-
-                    _ ->
-                        Err { req = req, res = res, decodeError = Nothing }
-            )
-        )
-        req
+    -> Task x a
+stringTask resolve req =
+    toTask (Http.stringResolver (resolve req)) req
 
 
 {-| -}
 bytesTask :
-    Bytes.Decode.Decoder a
+    (Req -> Http.Response Bytes -> Result x a)
     -> Req
-    -> Task BytesReqError a
-bytesTask decoder req =
-    toTask
-        (Http.bytesResolver
-            (\res ->
-                case res of
-                    Http.GoodStatus_ meta body ->
-                        case Bytes.Decode.decode decoder body of
-                            Just a ->
-                                Ok a
-
-                            Nothing ->
-                                Err { req = req, res = res, decodeError = True }
-
-                    _ ->
-                        Err { req = req, res = res, decodeError = False }
-            )
-        )
-        req
+    -> Task x a
+bytesTask resolve req =
+    toTask (Http.bytesResolver (resolve req)) req
 
 
 {-| -}
 whateverTask :
     msg
     -> Req
-    -> Task BytesReqError msg
+    -> Task x msg
 whateverTask msg req =
     toTask (Http.bytesResolver (\res -> Ok msg)) req
 
@@ -341,48 +277,13 @@ toTask resolver req =
 {-| -}
 trackString :
     String
-    -> (Result StringReqError String -> msg)
+    -> (Result x a -> msg)
+    -> (Req -> Http.Response String -> Result x a)
     -> Req
     -> Cmd msg
-trackString tracker toMsg req =
+trackString tracker toMsg resolve req =
     track
-        (Http.expectStringResponse
-            toMsg
-            (\res ->
-                case res of
-                    Http.GoodStatus_ meta body ->
-                        Ok body
-
-                    _ ->
-                        Err { req = req, res = res, decodeError = Nothing }
-            )
-        )
-        tracker
-        req
-
-
-{-| -}
-trackJson :
-    String
-    -> (Result StringReqError a -> msg)
-    -> Json.Decode.Decoder a
-    -> Req
-    -> Cmd msg
-trackJson tracker toMsg decoder req =
-    track
-        (Http.expectStringResponse
-            toMsg
-            (\res ->
-                case res of
-                    Http.GoodStatus_ meta body ->
-                        Result.mapError
-                            (\err -> { req = req, res = res, decodeError = Just err })
-                            (Json.Decode.decodeString decoder body)
-
-                    _ ->
-                        Err { req = req, res = res, decodeError = Nothing }
-            )
-        )
+        (Http.expectStringResponse toMsg (resolve req))
         tracker
         req
 
@@ -390,28 +291,13 @@ trackJson tracker toMsg decoder req =
 {-| -}
 trackBytes :
     String
-    -> (Result BytesReqError a -> msg)
-    -> Bytes.Decode.Decoder a
+    -> (Result x a -> msg)
+    -> (Req -> Http.Response Bytes -> Result x a)
     -> Req
     -> Cmd msg
-trackBytes tracker toMsg decoder req =
+trackBytes tracker toMsg resolve req =
     track
-        (Http.expectBytesResponse
-            toMsg
-            (\res ->
-                case res of
-                    Http.GoodStatus_ meta body ->
-                        case Bytes.Decode.decode decoder body of
-                            Just a ->
-                                Ok a
-
-                            Nothing ->
-                                Err { req = req, res = res, decodeError = True }
-
-                    _ ->
-                        Err { req = req, res = res, decodeError = False }
-            )
-        )
+        (Http.expectBytesResponse toMsg (resolve req))
         tracker
         req
 

@@ -19,63 +19,64 @@ import Task exposing (Task)
 
 getUser : String -> Task Error User
 getUser userName =
-    Req.get ("https://api.github.com/users/" ++ userName)
-        |> Req.jsonTask userDecoder
-        |> Task.mapError toError
+    Req.get ("https://api.github.com/uers/" ++ userName)
+        |> Req.stringTask (resolve userDecoder)
 
 
 getRepo : String -> String -> Task Error Repo
 getRepo userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.jsonTask repoDecoder
-        |> Task.mapError toError
+        |> Req.stringTask (resolve repoDecoder)
 
 
 getRepos : String -> Task Error (List Repo)
 getRepos userName =
     Req.get ("https://api.github.com/users/" ++ userName ++ "/repos")
-        |> Req.jsonTask (D.list repoDecoder)
-        |> Task.mapError toError
+        |> Req.stringTask (resolve (D.list repoDecoder))
 
 
 getIssues : String -> String -> Task Error (List Issue)
 getIssues userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName ++ "/issues")
-        |> Req.jsonTask (D.list issueDecoder)
-        |> Task.mapError toError
+        |> Req.stringTask (resolve (D.list issueDecoder))
 
 
-toError : Req.StringReqError -> Error
-toError { req, res, decodeError } =
-    { method = req.method
-    , url = req.url
-    , details =
-        case decodeError of
-            Just e ->
-                BadBody (D.errorToString e)
+resolve : Decoder a -> Req.Req -> Http.Response String -> Result Error a
+resolve decoder req res =
+    case res of
+        Http.BadUrl_ url ->
+            err req (BadUrl url)
 
-            Nothing ->
-                case res of
-                    Http.BadUrl_ url ->
-                        BadUrl url
+        Http.Timeout_ ->
+            err req Timeout
 
-                    Http.Timeout_ ->
-                        Timeout
+        Http.NetworkError_ ->
+            err req NetworkError
 
-                    Http.NetworkError_ ->
-                        NetworkError
+        Http.BadStatus_ metadata body ->
+            case D.decodeString (errorDecoder metadata.statusCode) body of
+                Ok info ->
+                    err req (BadStatus metadata.statusCode metadata.statusText metadata.headers info)
 
-                    Http.BadStatus_ metadata body ->
-                        case D.decodeString (errorDecoder metadata.statusCode) body of
-                            Ok info ->
-                                BadStatus metadata.statusCode metadata.statusText metadata.headers info
+                Err e ->
+                    err req (BadErrorBody (D.errorToString e))
 
-                            Err e ->
-                                BadErrorBody (D.errorToString e)
+        Http.GoodStatus_ _ body ->
+            case D.decodeString decoder body of
+                Ok a ->
+                    Ok a
 
-                    Http.GoodStatus_ _ body ->
-                        Bug "Unexpected GoodStatus"
-    }
+                Err e ->
+                    err req (BadBody (D.errorToString e))
+
+
+err : Req.Req -> ErrorDetails -> Result Error a
+err req details =
+    Err
+        { method = req.method
+        , url = req.url
+        , details = details
+        }
 
 
 type alias Repo =
