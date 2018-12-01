@@ -1,13 +1,15 @@
 module Requests exposing
     ( Error
     , ErrorDetails(..)
+    , ErrorInfo
     , Issue
     , Repo
     , User
-    , getIssues
     , getRepo
-    , getRepos
+    , getRepoSimple
+    , getRepoWithDecodeError
     , getUser
+    , getUserSimple
     )
 
 import Dict exposing (..)
@@ -17,9 +19,21 @@ import Req
 import Task exposing (Task)
 
 
+getUserSimple : String -> Task Http.Error User
+getUserSimple userName =
+    Req.get ("https://api.github.com/users/" ++ userName)
+        |> Req.stringTask (Req.simplyResolveJson userDecoder)
+
+
+getRepoSimple : String -> String -> Task Http.Error Repo
+getRepoSimple userName repoName =
+    Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
+        |> Req.stringTask (Req.simplyResolveJson repoDecoder)
+
+
 getUser : String -> Task Error User
 getUser userName =
-    Req.get ("https://api.github.com/uers/" ++ userName)
+    Req.get ("https://api.github.com/users/" ++ userName)
         |> Req.stringTask (resolve userDecoder)
 
 
@@ -29,16 +43,11 @@ getRepo userName repoName =
         |> Req.stringTask (resolve repoDecoder)
 
 
-getRepos : String -> Task Error (List Repo)
-getRepos userName =
-    Req.get ("https://api.github.com/users/" ++ userName ++ "/repos")
-        |> Req.stringTask (resolve (D.list repoDecoder))
-
-
-getIssues : String -> String -> Task Error (List Issue)
-getIssues userName repoName =
-    Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName ++ "/issues")
-        |> Req.stringTask (resolve (D.list issueDecoder))
+getRepoWithDecodeError : String -> String -> Task Error Repo
+getRepoWithDecodeError userName repoName =
+    Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
+        |> Req.stringTask (resolve buggyRepoDecoder)
+        |> Task.map (Debug.log "repo")
 
 
 resolve : Decoder a -> Req.Req -> Http.Response String -> Result Error a
@@ -144,12 +153,17 @@ repoDecoder =
         (D.field "watchers_count" D.int)
 
 
-issueDecoder : Decoder Issue
-issueDecoder =
-    D.map3 Issue
-        (D.field "number" D.int)
-        (D.field "title" D.string)
-        (D.field "state" D.string)
+buggyRepoDecoder : Decoder Repo
+buggyRepoDecoder =
+    D.map7 Repo
+        (D.field "name" D.string)
+        (D.maybe (D.field "description" D.string))
+        (D.maybe (D.field "language" D.string))
+        (D.at [ "owner", "login" ] D.string)
+        -- wrong field name
+        (D.field "forks_number" D.int)
+        (D.field "stargazers_count" D.int)
+        (D.field "watchers_count" D.int)
 
 
 errorDecoder : Int -> Decoder ErrorInfo

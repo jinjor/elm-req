@@ -42,18 +42,16 @@ type alias Model =
 
 
 type State
-    = Waiting
+    = Init
+    | Waiting
     | Loaded ( User, Repo )
     | Error Requests.Error
 
 
 init : () -> ( Model, Cmd Msg )
 init flags =
-    ( { state = Waiting }
-    , Task.map2 Tuple.pair
-        (Requests.getUser "jinjor")
-        (Requests.getRepo "jinjor" "elm-req")
-        |> Task.attempt Received
+    ( { state = Init }
+    , Cmd.none
     )
 
 
@@ -62,12 +60,39 @@ init flags =
 
 
 type Msg
-    = Received (Result Requests.Error ( User, Repo ))
+    = Send
+    | SendWith404
+    | SendWithDecodeError
+    | Received (Result Requests.Error ( User, Repo ))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Send ->
+            ( { state = Waiting }
+            , Task.map2 Tuple.pair
+                (Requests.getUser "jinjor")
+                (Requests.getRepo "jinjor" "elm-req")
+                |> Task.attempt Received
+            )
+
+        SendWith404 ->
+            ( { state = Waiting }
+            , Task.map2 Tuple.pair
+                (Requests.getUser "jinjor")
+                (Requests.getRepo "jinjor" "this-repo-doesnt-exist")
+                |> Task.attempt Received
+            )
+
+        SendWithDecodeError ->
+            ( { state = Waiting }
+            , Task.map2 Tuple.pair
+                (Requests.getUser "jinjor")
+                (Requests.getRepoWithDecodeError "jinjor" "elm-req")
+                |> Task.attempt Received
+            )
+
         Received (Ok userAndRepo) ->
             ( { model | state = Loaded userAndRepo }, Cmd.none )
 
@@ -90,7 +115,22 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
+    div
+        []
+        [ div [] [ input [ type_ "button", onClick Send, value "Send" ] [] ]
+        , div [] [ input [ type_ "button", onClick SendWith404, value "Send (404)" ] [] ]
+        , div [] [ input [ type_ "button", onClick SendWithDecodeError, value "Send (Decode Error)" ] [] ]
+        , hr [] []
+        , viewState model
+        ]
+
+
+viewState : Model -> Html Msg
+viewState model =
     case model.state of
+        Init ->
+            text ""
+
         Waiting ->
             text "waiting"
 
