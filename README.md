@@ -3,8 +3,7 @@ elm-req
 
 An experimental alternative for [elm/http](https://github.com/elm/http).
 
-**Warning: Not fully tested yet, and a big change coming soon!**
-
+**Warning**: Not battle tested yet. Use with care.
 
 ## Motivation
 
