@@ -4,10 +4,10 @@ module Requests exposing
     , Repo
     , User
     , getRepo
-    , getRepoSimple
+    , getRepoCompatible
     , getRepoWithDecodeError
     , getUser
-    , getUserSimple
+    , getUserCompatible
     , upload
     )
 
@@ -26,43 +26,37 @@ upload tracker toMsg files =
         |> Req.trackWhatever tracker toMsg
 
 
-getUserSimple : String -> Task Http.Error User
-getUserSimple userName =
+getUserCompatible : String -> Task Http.Error User
+getUserCompatible userName =
     Req.get ("https://api.github.com/users/" ++ userName)
-        |> Req.stringTask (Req.simplyResolveJson userDecoder)
+        |> Req.jsonTaskCompatible userDecoder
 
 
-getRepoSimple : String -> String -> Task Http.Error Repo
-getRepoSimple userName repoName =
+getRepoCompatible : String -> String -> Task Http.Error Repo
+getRepoCompatible userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.stringTask (Req.simplyResolveJson repoDecoder)
+        |> Req.jsonTaskCompatible repoDecoder
 
 
-getUser : String -> Task (Req.ReqWithError ErrorInfo) User
+getUser : String -> Task (Req.Error ErrorInfo) User
 getUser userName =
     Req.get ("https://api.github.com/users/" ++ userName)
-        |> Req.stringTask
-            (Req.resolveJsonWithReq
-                { decoder = userDecoder, errorDecoder = errorDecoder }
-            )
+        |> Req.jsonTaskWithError
+            { decoder = userDecoder, errorDecoder = errorDecoder }
 
 
-getRepo : String -> String -> Task (Req.ReqWithError ErrorInfo) Repo
+getRepo : String -> String -> Task (Req.Error ErrorInfo) Repo
 getRepo userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.stringTask
-            (Req.resolveJsonWithReq
-                { decoder = repoDecoder, errorDecoder = errorDecoder }
-            )
+        |> Req.jsonTaskWithError
+            { decoder = repoDecoder, errorDecoder = errorDecoder }
 
 
-getRepoWithDecodeError : String -> String -> Task (Req.ReqWithError ErrorInfo) Repo
+getRepoWithDecodeError : String -> String -> Task (Req.Error ErrorInfo) Repo
 getRepoWithDecodeError userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.stringTask
-            (Req.resolveJsonWithReq
-                { decoder = buggyRepoDecoder, errorDecoder = errorDecoder }
-            )
+        |> Req.jsonTaskWithError
+            { decoder = buggyRepoDecoder, errorDecoder = errorDecoder }
 
 
 type alias Repo =

@@ -1,12 +1,11 @@
 module Req exposing
-    ( Req, Body(..), Part(..), Error(..), ReqWithError
+    ( Req, Body(..), Part(..), Error, Problem(..)
     , init, get, post, put, patch, delete
     , withStringBody, withJsonBody, withFileBody, withBytesBody, withMultipartBody
     , stringPart, filePart, bytesPart
     , withHeader, withTimeout, allowCookiesFromOtherDomains
-    , stringTask, bytesTask, whateverTask, toTask
-    , simplyResolveJson, resolveJson, resolveJsonWithReq
-    , trackString, trackBytes, trackWhatever, track
+    , jsonTaskCompatible, jsonTask, jsonTaskWithError, stringTask, bytesTask, whateverTask, toTask
+    , trackJsonCompatible, trackJson, trackJsonWithError, trackString, trackBytes, trackWhatever, track
     )
 
 {-| An experimental alternative for [elm/http](https://github.com/elm/http).
@@ -16,7 +15,7 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Types
 
-@docs Req, Body, Part, Error, ReqWithError
+@docs Req, Body, Part, Error, Problem
 
 
 # Methods
@@ -41,17 +40,12 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Task
 
-@docs stringTask, bytesTask, whateverTask, toTask
-
-
-# Resolver
-
-@docs simplyResolveJson, resolveJson, resolveJsonWithReq
+@docs jsonTaskCompatible, jsonTask, jsonTaskWithError, stringTask, bytesTask, whateverTask, toTask
 
 
 # Tracking
 
-@docs trackString, trackBytes, trackWhatever, track
+@docs trackJsonCompatible, trackJson, trackJsonWithError, trackString, trackBytes, trackWhatever, track
 
 -}
 
@@ -101,7 +95,7 @@ type Part
 
 {-| Similar to `Http.Error` but have more informarion
 -}
-type Error a
+type Problem a
     = BadUrl String
     | Timeout
     | NetworkError
@@ -111,9 +105,9 @@ type Error a
 
 {-| Req with Error
 -}
-type alias ReqWithError a =
+type alias Error a =
     { request : Req
-    , error : Error a
+    , error : Problem a
     }
 
 
@@ -269,233 +263,6 @@ allowCookiesFromOtherDomains allowCookiesFromOtherDomains_ req =
 
 
 
--- TASK
-
-
-{-| Create a task to parse string body.
--}
-stringTask :
-    (Req -> Http.Response String -> Result x a)
-    -> Req
-    -> Task x a
-stringTask resolve req =
-    toTask (Http.stringResolver (resolve req)) req
-
-
-{-| Create a task to parse bytes body.
--}
-bytesTask :
-    (Req -> Http.Response Bytes -> Result x a)
-    -> Req
-    -> Task x a
-bytesTask resolve req =
-    toTask (Http.bytesResolver (resolve req)) req
-
-
-{-| Ignore the result.
--}
-whateverTask :
-    msg
-    -> Req
-    -> Task x msg
-whateverTask msg req =
-    toTask (Http.bytesResolver (\res -> Ok msg)) req
-
-
-{-| Create a task with existing `Http.Resolver`.
--}
-toTask : Http.Resolver x a -> Req -> Task x a
-toTask resolver req =
-    (if req.allowCookiesFromOtherDomains then
-        Http.riskyTask
-
-     else
-        Http.task
-    )
-        { method = req.method
-        , headers = List.map (\( k, v ) -> Http.header k v) req.headers
-        , url = req.url
-        , body = toHttpBody req.body
-        , resolver = resolver
-        , timeout = req.timeout
-        }
-
-
-
--- RESOLVER
-
-
-{-| Make a resolver function that returns `Http.Error`.
-
-    getUserSimple : String -> Task Http.Error User
-    getUserSimple userName =
-        Req.get ("https://api.github.com/users/" ++ userName)
-            |> Req.stringTask (Req.simplyResolveJson userDecoder)
-
--}
-simplyResolveJson : Json.Decode.Decoder a -> Req -> Http.Response String -> Result Http.Error a
-simplyResolveJson decoder _ res =
-    case res of
-        Http.BadUrl_ url ->
-            Err (Http.BadUrl url)
-
-        Http.Timeout_ ->
-            Err Http.Timeout
-
-        Http.NetworkError_ ->
-            Err Http.NetworkError
-
-        Http.BadStatus_ metadata body ->
-            Err (Http.BadStatus metadata.statusCode)
-
-        Http.GoodStatus_ _ body ->
-            case Json.Decode.decodeString decoder body of
-                Ok a ->
-                    Ok a
-
-                Err e ->
-                    Err (Http.BadBody (Json.Decode.errorToString e))
-
-
-{-| Make a resolver function that returns `Req.Error`.
-
-    getUserSimple : String -> Task Http.Error User
-    getUserSimple userName =
-        Req.get ("https://api.github.com/users/" ++ userName)
-            |> Req.stringTask
-                (Req.resolveJson
-                    { decoder = userDecoder
-                    , errorDecoder = errorDecoder
-                    }
-                )
-
-    - First decoder is used for good body
-    - First decoder is used for bad body
-    - Decoding errors of both go to BadBody
-
--}
-resolveJson :
-    { decoder : Json.Decode.Decoder a
-    , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
-    }
-    -> Req
-    -> Http.Response String
-    -> Result (Error e) a
-resolveJson { decoder, errorDecoder } req res =
-    case res of
-        Http.BadUrl_ url ->
-            Err (BadUrl url)
-
-        Http.Timeout_ ->
-            Err Timeout
-
-        Http.NetworkError_ ->
-            Err NetworkError
-
-        Http.BadStatus_ metadata body ->
-            case Json.Decode.decodeString (errorDecoder metadata) body of
-                Ok a ->
-                    Err (BadStatus metadata a)
-
-                Err e ->
-                    Err (BadBody metadata (Json.Decode.errorToString e))
-
-        Http.GoodStatus_ metadata body ->
-            case Json.Decode.decodeString decoder body of
-                Ok a ->
-                    Ok a
-
-                Err e ->
-                    Err (BadBody metadata (Json.Decode.errorToString e))
-
-
-{-| resolve Json and return Error with Req.
--}
-resolveJsonWithReq :
-    { decoder : Json.Decode.Decoder a
-    , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
-    }
-    -> Req
-    -> Http.Response String
-    -> Result (ReqWithError e) a
-resolveJsonWithReq options req res =
-    resolveJson options req res
-        |> Result.mapError (ReqWithError req)
-
-
-
--- TRACKING
-
-
-{-| Track progress of responses with string body.
--}
-trackString :
-    String
-    -> (Result x a -> msg)
-    -> (Req -> Http.Response String -> Result x a)
-    -> Req
-    -> Cmd msg
-trackString tracker toMsg resolve req =
-    track
-        tracker
-        (Http.expectStringResponse toMsg (resolve req))
-        req
-
-
-{-| Track progress of responses with bytes body.
--}
-trackBytes :
-    String
-    -> (Result x a -> msg)
-    -> (Req -> Http.Response Bytes -> Result x a)
-    -> Req
-    -> Cmd msg
-trackBytes tracker toMsg resolve req =
-    track
-        tracker
-        (Http.expectBytesResponse toMsg (resolve req))
-        req
-
-
-{-| Track something but ignore the result.
--}
-trackWhatever :
-    String
-    -> (Result x () -> msg)
-    -> Req
-    -> Cmd msg
-trackWhatever tracker toMsg req =
-    track
-        tracker
-        (Http.expectBytesResponse toMsg (\res -> Ok ()))
-        req
-
-
-{-| Make a traking Cmd using existing `Http.Expect`.
--}
-track :
-    String
-    -> Http.Expect msg
-    -> Req
-    -> Cmd msg
-track tracker expect req =
-    (if req.allowCookiesFromOtherDomains then
-        Http.riskyRequest
-
-     else
-        Http.request
-    )
-        { method = req.method
-        , headers = toHttpHeaders req.headers
-        , url = req.url
-        , body = toHttpBody req.body
-        , expect = expect
-        , timeout = req.timeout
-        , tracker = Just tracker
-        }
-
-
-
 -- CONVERT
 
 
@@ -537,3 +304,307 @@ toHttpPart part =
 
         BytesPart key mime bytes ->
             Http.bytesPart key mime bytes
+
+
+
+-- TASK
+
+
+{-| -}
+jsonTaskCompatible :
+    Json.Decode.Decoder a
+    -> Req
+    -> Task Http.Error a
+jsonTaskCompatible decoder req =
+    toTask
+        (Http.stringResolver (resolveJsonCompatible decoder req))
+        req
+
+
+{-| -}
+jsonTask :
+    Json.Decode.Decoder a
+    -> Req
+    -> Task (Error String) a
+jsonTask decoder req =
+    toTask
+        (Http.stringResolver
+            (resolveJson
+                { decoder = decoder
+                , errorDecoder = \meta -> Json.Decode.string
+                }
+                req
+            )
+        )
+        req
+
+
+{-| -}
+jsonTaskWithError :
+    { decoder : Json.Decode.Decoder a
+    , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
+    }
+    -> Req
+    -> Task (Error e) a
+jsonTaskWithError decoders req =
+    toTask
+        (Http.stringResolver (resolveJson decoders req))
+        req
+
+
+{-| Create a task to parse string body.
+-}
+stringTask :
+    Resolve String x a
+    -> Req
+    -> Task x a
+stringTask resolve req =
+    toTask (Http.stringResolver (resolve req)) req
+
+
+{-| Create a task to parse bytes body.
+-}
+bytesTask :
+    Resolve Bytes x a
+    -> Req
+    -> Task x a
+bytesTask resolve req =
+    toTask (Http.bytesResolver (resolve req)) req
+
+
+{-| Ignore the result.
+-}
+whateverTask :
+    msg
+    -> Req
+    -> Task x msg
+whateverTask msg req =
+    toTask (Http.bytesResolver (\res -> Ok msg)) req
+
+
+{-| Create a task with existing `Http.Resolver`.
+-}
+toTask : Http.Resolver x a -> Req -> Task x a
+toTask resolver req =
+    (if req.allowCookiesFromOtherDomains then
+        Http.riskyTask
+
+     else
+        Http.task
+    )
+        { method = req.method
+        , headers = toHttpHeaders req.headers
+        , url = req.url
+        , body = toHttpBody req.body
+        , resolver = resolver
+        , timeout = req.timeout
+        }
+
+
+
+-- TRACKING
+
+
+{-| -}
+trackJsonCompatible :
+    String
+    -> (Result Http.Error a -> msg)
+    -> Json.Decode.Decoder a
+    -> Req
+    -> Cmd msg
+trackJsonCompatible tracker toMsg decoder req =
+    trackString
+        tracker
+        toMsg
+        (resolveJsonCompatible decoder)
+        req
+
+
+{-| -}
+trackJson :
+    String
+    -> (Result (Error String) a -> msg)
+    -> Json.Decode.Decoder a
+    -> Req
+    -> Cmd msg
+trackJson tracker toMsg decoder req =
+    trackJsonWithError
+        tracker
+        toMsg
+        { decoder = decoder
+        , errorDecoder = \meta -> Json.Decode.string
+        }
+        req
+
+
+{-| -}
+trackJsonWithError :
+    String
+    -> (Result (Error e) a -> msg)
+    ->
+        { decoder : Json.Decode.Decoder a
+        , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
+        }
+    -> Req
+    -> Cmd msg
+trackJsonWithError tracker toMsg decoders req =
+    trackString
+        tracker
+        toMsg
+        (resolveJson decoders)
+        req
+
+
+{-| Track progress of responses with string body.
+-}
+trackString :
+    String
+    -> (Result e a -> msg)
+    -> Resolve String e a
+    -> Req
+    -> Cmd msg
+trackString tracker toMsg resolve req =
+    track
+        tracker
+        (Http.expectStringResponse toMsg (resolve req))
+        req
+
+
+{-| Track progress of responses with bytes body.
+-}
+trackBytes :
+    String
+    -> (Result e a -> msg)
+    -> Resolve Bytes e a
+    -> Req
+    -> Cmd msg
+trackBytes tracker toMsg resolve req =
+    track
+        tracker
+        (Http.expectBytesResponse toMsg (resolve req))
+        req
+
+
+{-| Track something but ignore the result.
+-}
+trackWhatever :
+    String
+    -> (Result x () -> msg)
+    -> Req
+    -> Cmd msg
+trackWhatever tracker toMsg req =
+    track
+        tracker
+        (Http.expectBytesResponse toMsg (\res -> Ok ()))
+        req
+
+
+{-| Make a Cmd with tracker using existing `Http.Expect`.
+-}
+track :
+    String
+    -> Http.Expect msg
+    -> Req
+    -> Cmd msg
+track tracker expect req =
+    (if req.allowCookiesFromOtherDomains then
+        Http.riskyRequest
+
+     else
+        Http.request
+    )
+        { method = req.method
+        , headers = toHttpHeaders req.headers
+        , url = req.url
+        , body = toHttpBody req.body
+        , expect = expect
+        , timeout = req.timeout
+        , tracker = Just tracker
+        }
+
+
+
+-- RESOLVE
+
+
+type alias Resolve src x a =
+    Req -> Http.Response src -> Result x a
+
+
+resolveStringCompatible : Resolve String Http.Error String
+resolveStringCompatible =
+    \req res ->
+        case res of
+            Http.BadUrl_ url ->
+                Err (Http.BadUrl url)
+
+            Http.Timeout_ ->
+                Err Http.Timeout
+
+            Http.NetworkError_ ->
+                Err Http.NetworkError
+
+            Http.BadStatus_ metadata body ->
+                Err (Http.BadStatus metadata.statusCode)
+
+            Http.GoodStatus_ _ body ->
+                Ok body
+
+
+resolveJsonCompatible : Json.Decode.Decoder a -> Resolve String Http.Error a
+resolveJsonCompatible decoder =
+    \req res ->
+        case res of
+            Http.BadUrl_ url ->
+                Err (Http.BadUrl url)
+
+            Http.Timeout_ ->
+                Err Http.Timeout
+
+            Http.NetworkError_ ->
+                Err Http.NetworkError
+
+            Http.BadStatus_ metadata body ->
+                Err (Http.BadStatus metadata.statusCode)
+
+            Http.GoodStatus_ _ body ->
+                case Json.Decode.decodeString decoder body of
+                    Ok a ->
+                        Ok a
+
+                    Err e ->
+                        Err (Http.BadBody (Json.Decode.errorToString e))
+
+
+resolveJson :
+    { decoder : Json.Decode.Decoder a
+    , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
+    }
+    -> Resolve String (Error e) a
+resolveJson { decoder, errorDecoder } req res =
+    Result.mapError (Error req) <|
+        case res of
+            Http.BadUrl_ url ->
+                Err (BadUrl url)
+
+            Http.Timeout_ ->
+                Err Timeout
+
+            Http.NetworkError_ ->
+                Err NetworkError
+
+            Http.BadStatus_ metadata body ->
+                case Json.Decode.decodeString (errorDecoder metadata) body of
+                    Ok a ->
+                        Err (BadStatus metadata a)
+
+                    Err e ->
+                        Err (BadBody metadata (Json.Decode.errorToString e))
+
+            Http.GoodStatus_ metadata body ->
+                case Json.Decode.decodeString decoder body of
+                    Ok a ->
+                        Ok a
+
+                    Err e ->
+                        Err (BadBody metadata (Json.Decode.errorToString e))

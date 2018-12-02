@@ -45,7 +45,7 @@ type State
     = Init
     | Waiting
     | Loaded ( User, Repo )
-    | Error (Req.ReqWithError ErrorInfo)
+    | Error (Req.Error ErrorInfo)
 
 
 init : () -> ( Model, Cmd Msg )
@@ -63,7 +63,7 @@ type Msg
     = Send
     | SendWith404
     | SendWithDecodeError
-    | Received (Result (Req.ReqWithError ErrorInfo) ( User, Repo ))
+    | Received (Result (Req.Error ErrorInfo) ( User, Repo ))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
