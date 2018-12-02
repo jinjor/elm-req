@@ -4,8 +4,14 @@ module Req exposing
     , withStringBody, withJsonBody, withFileBody, withBytesBody, withMultipartBody
     , stringPart, filePart, bytesPart
     , withHeader, withTimeout, allowCookiesFromOtherDomains
-    , jsonTaskCompatible, jsonTask, jsonTaskWithError, stringTask, bytesTask, whateverTask, toTask
-    , trackJsonCompatible, trackJson, trackJsonWithError, trackString, trackBytes, trackWhatever, track
+    , stringCompatible, string, stringWithError
+    , jsonCompatible, json, jsonWithError
+    , bytesCompatible, bytes, bytesWithError
+    , whatever, toTask
+    , trackStringCompatible, trackString, trackStringWithError
+    , trackJsonCompatible, trackJson, trackJsonWithError
+    , trackBytesCompatible, trackBytes, trackBytesWithError
+    , trackWhatever, track
     )
 
 {-| An experimental alternative for [elm/http](https://github.com/elm/http).
@@ -40,12 +46,18 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 
 # Task
 
-@docs jsonTaskCompatible, jsonTask, jsonTaskWithError, stringTask, bytesTask, whateverTask, toTask
+@docs stringCompatible, string, stringWithError
+@docs jsonCompatible, json, jsonWithError
+@docs bytesCompatible, bytes, bytesWithError
+@docs whatever, toTask
 
 
 # Tracking
 
-@docs trackJsonCompatible, trackJson, trackJsonWithError, trackString, trackBytes, trackWhatever, track
+@docs trackStringCompatible, trackString, trackStringWithError
+@docs trackJsonCompatible, trackJson, trackJsonWithError
+@docs trackBytesCompatible, trackBytes, trackBytesWithError
+@docs trackWhatever, track
 
 -}
 
@@ -197,9 +209,9 @@ withFileBody file req =
 {-| Add bytes with mime type.
 -}
 withBytesBody : String -> Bytes -> Req -> Req
-withBytesBody mime bytes req =
+withBytesBody mime bytes_ req =
     { req
-        | body = BytesBody mime bytes
+        | body = BytesBody mime bytes_
     }
 
 
@@ -233,8 +245,8 @@ filePart key file =
 {-| Bytes part (key and mime and bytes)
 -}
 bytesPart : String -> String -> Bytes -> Part
-bytesPart key mime bytes =
-    BytesPart key mime bytes
+bytesPart key mime bytes_ =
+    BytesPart key mime bytes_
 
 
 
@@ -280,14 +292,14 @@ toHttpBody body =
         StringBody mime str ->
             Http.stringBody mime str
 
-        JsonBody json ->
-            Http.stringBody "application/json" (Json.Encode.encode 0 json)
+        JsonBody value ->
+            Http.stringBody "application/json" (Json.Encode.encode 0 value)
 
         FileBody file ->
             Http.fileBody file
 
-        BytesBody mime bytes ->
-            Http.bytesBody mime bytes
+        BytesBody mime bytes_ ->
+            Http.bytesBody mime bytes_
 
         MultipartBody parts ->
             Http.multipartBody (List.map toHttpPart parts)
@@ -302,8 +314,8 @@ toHttpPart part =
         FilePart key file ->
             Http.filePart key file
 
-        BytesPart key mime bytes ->
-            Http.bytesPart key mime bytes
+        BytesPart key mime bytes_ ->
+            Http.bytesPart key mime bytes_
 
 
 
@@ -311,27 +323,64 @@ toHttpPart part =
 
 
 {-| -}
-jsonTaskCompatible :
+stringCompatible : Req -> Task Http.Error String
+stringCompatible req =
+    toTask
+        (Http.stringResolver (resolveStringCompatible req))
+        req
+
+
+{-| -}
+string : Req -> Task (Error String) String
+string req =
+    toTask
+        (Http.stringResolver
+            (resolveString
+                (\meta body -> Json.Decode.succeed body)
+                req
+            )
+        )
+        req
+
+
+{-| -}
+stringWithError :
+    (Http.Metadata -> Json.Decode.Decoder e)
+    -> Req
+    -> Task (Error e) String
+stringWithError errorDecoder req =
+    toTask
+        (Http.stringResolver
+            (resolveString
+                (\meta body -> errorDecoder meta)
+                req
+            )
+        )
+        req
+
+
+{-| -}
+jsonCompatible :
     Json.Decode.Decoder a
     -> Req
     -> Task Http.Error a
-jsonTaskCompatible decoder req =
+jsonCompatible decoder req =
     toTask
         (Http.stringResolver (resolveJsonCompatible decoder req))
         req
 
 
 {-| -}
-jsonTask :
+json :
     Json.Decode.Decoder a
     -> Req
     -> Task (Error String) a
-jsonTask decoder req =
+json decoder req =
     toTask
         (Http.stringResolver
             (resolveJson
                 { decoder = decoder
-                , errorDecoder = \meta -> Json.Decode.string
+                , errorDecoder = \meta body -> Json.Decode.succeed body
                 }
                 req
             )
@@ -340,45 +389,81 @@ jsonTask decoder req =
 
 
 {-| -}
-jsonTaskWithError :
+jsonWithError :
     { decoder : Json.Decode.Decoder a
     , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
     }
     -> Req
     -> Task (Error e) a
-jsonTaskWithError decoders req =
+jsonWithError decoders req =
     toTask
-        (Http.stringResolver (resolveJson decoders req))
+        (Http.stringResolver
+            (resolveJson
+                { decoder = decoders.decoder
+                , errorDecoder = \meta body -> decoders.errorDecoder meta
+                }
+                req
+            )
+        )
         req
 
 
-{-| Create a task to parse string body.
--}
-stringTask :
-    Resolve String x a
+{-| -}
+bytesCompatible :
+    Bytes.Decode.Decoder a
     -> Req
-    -> Task x a
-stringTask resolve req =
-    toTask (Http.stringResolver (resolve req)) req
+    -> Task Http.Error a
+bytesCompatible decoder req =
+    toTask
+        (Http.bytesResolver (resolveBytesCompatible decoder req))
+        req
 
 
-{-| Create a task to parse bytes body.
--}
-bytesTask :
-    Resolve Bytes x a
+{-| -}
+bytes :
+    Bytes.Decode.Decoder a
     -> Req
-    -> Task x a
-bytesTask resolve req =
-    toTask (Http.bytesResolver (resolve req)) req
+    -> Task (Error String) a
+bytes decoder req =
+    toTask
+        (Http.bytesResolver
+            (resolveBytes
+                { decoder = decoder
+                , errorDecoder = \_ -> Bytes.Decode.succeed ""
+                }
+                req
+            )
+        )
+        req
+
+
+{-| -}
+bytesWithError :
+    { decoder : Bytes.Decode.Decoder a
+    , errorDecoder : Http.Metadata -> Bytes.Decode.Decoder e
+    }
+    -> Req
+    -> Task (Error e) a
+bytesWithError decoders req =
+    toTask
+        (Http.bytesResolver
+            (resolveBytes
+                { decoder = decoders.decoder
+                , errorDecoder = \meta -> decoders.errorDecoder meta
+                }
+                req
+            )
+        )
+        req
 
 
 {-| Ignore the result.
 -}
-whateverTask :
+whatever :
     msg
     -> Req
     -> Task x msg
-whateverTask msg req =
+whatever msg req =
     toTask (Http.bytesResolver (\res -> Ok msg)) req
 
 
@@ -406,6 +491,49 @@ toTask resolver req =
 
 
 {-| -}
+trackStringCompatible :
+    String
+    -> (Result Http.Error String -> msg)
+    -> Req
+    -> Cmd msg
+trackStringCompatible tracker toMsg req =
+    trackString_
+        tracker
+        toMsg
+        resolveStringCompatible
+        req
+
+
+{-| -}
+trackString :
+    String
+    -> (Result (Error String) String -> msg)
+    -> Req
+    -> Cmd msg
+trackString tracker toMsg req =
+    trackString_
+        tracker
+        toMsg
+        (resolveString (\meta body -> Json.Decode.succeed body))
+        req
+
+
+{-| -}
+trackStringWithError :
+    String
+    -> (Result (Error e) String -> msg)
+    -> (Http.Metadata -> Json.Decode.Decoder e)
+    -> Req
+    -> Cmd msg
+trackStringWithError tracker toMsg errorDecoder req =
+    trackString_
+        tracker
+        toMsg
+        (resolveString (\meta body -> errorDecoder meta))
+        req
+
+
+{-| -}
 trackJsonCompatible :
     String
     -> (Result Http.Error a -> msg)
@@ -413,7 +541,7 @@ trackJsonCompatible :
     -> Req
     -> Cmd msg
 trackJsonCompatible tracker toMsg decoder req =
-    trackString
+    trackString_
         tracker
         toMsg
         (resolveJsonCompatible decoder)
@@ -428,12 +556,14 @@ trackJson :
     -> Req
     -> Cmd msg
 trackJson tracker toMsg decoder req =
-    trackJsonWithError
+    trackString_
         tracker
         toMsg
-        { decoder = decoder
-        , errorDecoder = \meta -> Json.Decode.string
-        }
+        (resolveJson
+            { decoder = decoder
+            , errorDecoder = \meta body -> Json.Decode.succeed body
+            }
+        )
         req
 
 
@@ -448,37 +578,93 @@ trackJsonWithError :
     -> Req
     -> Cmd msg
 trackJsonWithError tracker toMsg decoders req =
-    trackString
+    trackString_
         tracker
         toMsg
-        (resolveJson decoders)
+        (resolveJson
+            { decoder = decoders.decoder
+            , errorDecoder = \meta body -> decoders.errorDecoder meta
+            }
+        )
         req
 
 
-{-| Track progress of responses with string body.
--}
-trackString :
+trackString_ :
     String
     -> (Result e a -> msg)
     -> Resolve String e a
     -> Req
     -> Cmd msg
-trackString tracker toMsg resolve req =
+trackString_ tracker toMsg resolve req =
     track
         tracker
         (Http.expectStringResponse toMsg (resolve req))
         req
 
 
-{-| Track progress of responses with bytes body.
--}
+{-| -}
+trackBytesCompatible :
+    String
+    -> (Result Http.Error a -> msg)
+    -> Bytes.Decode.Decoder a
+    -> Req
+    -> Cmd msg
+trackBytesCompatible tracker toMsg decoder req =
+    trackBytes_
+        tracker
+        toMsg
+        (resolveBytesCompatible decoder)
+        req
+
+
+{-| -}
 trackBytes :
+    String
+    -> (Result (Error String) a -> msg)
+    -> Bytes.Decode.Decoder a
+    -> Req
+    -> Cmd msg
+trackBytes tracker toMsg decoder req =
+    trackBytes_
+        tracker
+        toMsg
+        (resolveBytes
+            { decoder = decoder
+            , errorDecoder = \meta -> Bytes.Decode.succeed ""
+            }
+        )
+        req
+
+
+{-| -}
+trackBytesWithError :
+    String
+    -> (Result (Error e) a -> msg)
+    ->
+        { decoder : Bytes.Decode.Decoder a
+        , errorDecoder : Http.Metadata -> Bytes.Decode.Decoder e
+        }
+    -> Req
+    -> Cmd msg
+trackBytesWithError tracker toMsg decoders req =
+    trackBytes_
+        tracker
+        toMsg
+        (resolveBytes
+            { decoder = decoders.decoder
+            , errorDecoder = \meta -> decoders.errorDecoder meta
+            }
+        )
+        req
+
+
+trackBytes_ :
     String
     -> (Result e a -> msg)
     -> Resolve Bytes e a
     -> Req
     -> Cmd msg
-trackBytes tracker toMsg resolve req =
+trackBytes_ tracker toMsg resolve req =
     track
         tracker
         (Http.expectBytesResponse toMsg (resolve req))
@@ -551,6 +737,33 @@ resolveStringCompatible =
                 Ok body
 
 
+resolveString :
+    (Http.Metadata -> String -> Json.Decode.Decoder e)
+    -> Resolve String (Error e) String
+resolveString errorDecoder req res =
+    Result.mapError (Error req) <|
+        case res of
+            Http.BadUrl_ url ->
+                Err (BadUrl url)
+
+            Http.Timeout_ ->
+                Err Timeout
+
+            Http.NetworkError_ ->
+                Err NetworkError
+
+            Http.BadStatus_ metadata body ->
+                case Json.Decode.decodeString (errorDecoder metadata body) body of
+                    Ok a ->
+                        Err (BadStatus metadata a)
+
+                    Err e ->
+                        Err (BadBody metadata (Json.Decode.errorToString e))
+
+            Http.GoodStatus_ metadata body ->
+                Ok body
+
+
 resolveJsonCompatible : Json.Decode.Decoder a -> Resolve String Http.Error a
 resolveJsonCompatible decoder =
     \req res ->
@@ -578,7 +791,7 @@ resolveJsonCompatible decoder =
 
 resolveJson :
     { decoder : Json.Decode.Decoder a
-    , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
+    , errorDecoder : Http.Metadata -> String -> Json.Decode.Decoder e
     }
     -> Resolve String (Error e) a
 resolveJson { decoder, errorDecoder } req res =
@@ -594,7 +807,7 @@ resolveJson { decoder, errorDecoder } req res =
                 Err NetworkError
 
             Http.BadStatus_ metadata body ->
-                case Json.Decode.decodeString (errorDecoder metadata) body of
+                case Json.Decode.decodeString (errorDecoder metadata body) body of
                     Ok a ->
                         Err (BadStatus metadata a)
 
@@ -608,3 +821,62 @@ resolveJson { decoder, errorDecoder } req res =
 
                     Err e ->
                         Err (BadBody metadata (Json.Decode.errorToString e))
+
+
+resolveBytesCompatible : Bytes.Decode.Decoder a -> Resolve Bytes Http.Error a
+resolveBytesCompatible decoder =
+    \req res ->
+        case res of
+            Http.BadUrl_ url ->
+                Err (Http.BadUrl url)
+
+            Http.Timeout_ ->
+                Err Http.Timeout
+
+            Http.NetworkError_ ->
+                Err Http.NetworkError
+
+            Http.BadStatus_ metadata body ->
+                Err (Http.BadStatus metadata.statusCode)
+
+            Http.GoodStatus_ _ body ->
+                case Bytes.Decode.decode decoder body of
+                    Just a ->
+                        Ok a
+
+                    Nothing ->
+                        Err (Http.BadBody "unexpected bytes")
+
+
+resolveBytes :
+    { decoder : Bytes.Decode.Decoder a
+    , errorDecoder : Http.Metadata -> Bytes.Decode.Decoder e
+    }
+    -> Resolve Bytes (Error e) a
+resolveBytes { decoder, errorDecoder } req res =
+    Result.mapError (Error req) <|
+        case res of
+            Http.BadUrl_ url ->
+                Err (BadUrl url)
+
+            Http.Timeout_ ->
+                Err Timeout
+
+            Http.NetworkError_ ->
+                Err NetworkError
+
+            Http.BadStatus_ metadata body ->
+                case Bytes.Decode.decode (errorDecoder metadata) body of
+                    Just a ->
+                        Err (BadStatus metadata a)
+
+                    Nothing ->
+                        Err (BadBody metadata "unexpected bytes")
+
+            Http.GoodStatus_ metadata body ->
+                case Bytes.Decode.decode decoder body of
+                    Just a ->
+                        Ok a
+
+                    Nothing ->
+                        Err (BadBody metadata "unexpected bytes")

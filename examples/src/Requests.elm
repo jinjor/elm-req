@@ -29,33 +29,33 @@ upload tracker toMsg files =
 getUserCompatible : String -> Task Http.Error User
 getUserCompatible userName =
     Req.get ("https://api.github.com/users/" ++ userName)
-        |> Req.jsonTaskCompatible userDecoder
+        |> Req.jsonCompatible userDecoder
 
 
 getRepoCompatible : String -> String -> Task Http.Error Repo
 getRepoCompatible userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.jsonTaskCompatible repoDecoder
+        |> Req.jsonCompatible repoDecoder
 
 
 getUser : String -> Task (Req.Error ErrorInfo) User
 getUser userName =
     Req.get ("https://api.github.com/users/" ++ userName)
-        |> Req.jsonTaskWithError
+        |> Req.jsonWithError
             { decoder = userDecoder, errorDecoder = errorDecoder }
 
 
 getRepo : String -> String -> Task (Req.Error ErrorInfo) Repo
 getRepo userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.jsonTaskWithError
+        |> Req.jsonWithError
             { decoder = repoDecoder, errorDecoder = errorDecoder }
 
 
 getRepoWithDecodeError : String -> String -> Task (Req.Error ErrorInfo) Repo
 getRepoWithDecodeError userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.jsonTaskWithError
+        |> Req.jsonWithError
             { decoder = buggyRepoDecoder, errorDecoder = errorDecoder }
 
 
