@@ -32,10 +32,6 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 # Body
 
 @docs withStringBody, withJsonBody, withFileBody, withBytesBody, withMultipartBody
-
-
-# Parts
-
 @docs stringPart, filePart, bytesPart
 
 
@@ -322,7 +318,8 @@ toHttpPart part =
 -- TASK
 
 
-{-| -}
+{-| Make a task that returns a string or `Http.Error`
+-}
 stringCompatible : Req -> Task Http.Error String
 stringCompatible req =
     toTask
@@ -330,7 +327,8 @@ stringCompatible req =
         req
 
 
-{-| -}
+{-| Make a task that returns a string or `Req.Error`
+-}
 string : Req -> Task (Error String) String
 string req =
     toTask
@@ -343,7 +341,8 @@ string req =
         req
 
 
-{-| -}
+{-| Make a task that returns a string or `Req.Error` with custom error.
+-}
 stringWithError :
     (Http.Metadata -> Json.Decode.Decoder e)
     -> Req
@@ -359,7 +358,8 @@ stringWithError errorDecoder req =
         req
 
 
-{-| -}
+{-| Make a task that returns an arbitrary data or `Http.Error`
+-}
 jsonCompatible :
     Json.Decode.Decoder a
     -> Req
@@ -370,7 +370,8 @@ jsonCompatible decoder req =
         req
 
 
-{-| -}
+{-| Make a task that returns an arbitrary data or `Req.Error`
+-}
 json :
     Json.Decode.Decoder a
     -> Req
@@ -388,7 +389,8 @@ json decoder req =
         req
 
 
-{-| -}
+{-| Make a task that returns an arbitrary data or `Req.Error` with custom error.
+-}
 jsonWithError :
     { decoder : Json.Decode.Decoder a
     , errorDecoder : Http.Metadata -> Json.Decode.Decoder e
@@ -408,7 +410,8 @@ jsonWithError decoders req =
         req
 
 
-{-| -}
+{-| Make a task that returns an arbitrary data or `Http.Error`.
+-}
 bytesCompatible :
     Bytes.Decode.Decoder a
     -> Req
@@ -419,7 +422,8 @@ bytesCompatible decoder req =
         req
 
 
-{-| -}
+{-| Make a task that returns an arbitrary data or `Req.Error`.
+-}
 bytes :
     Bytes.Decode.Decoder a
     -> Req
@@ -437,7 +441,8 @@ bytes decoder req =
         req
 
 
-{-| -}
+{-| Make a task that returns an arbitrary data or `Req.Error` with custom error.
+-}
 bytesWithError :
     { decoder : Bytes.Decode.Decoder a
     , errorDecoder : Http.Metadata -> Bytes.Decode.Decoder e
@@ -490,7 +495,8 @@ toTask resolver req =
 -- TRACKING
 
 
-{-| -}
+{-| Send a request for tracking, expecting a string or `Http.Error`.
+-}
 trackStringCompatible :
     String
     -> (Result Http.Error String -> msg)
@@ -504,7 +510,8 @@ trackStringCompatible tracker toMsg req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting a string or `Req.Error`.
+-}
 trackString :
     String
     -> (Result (Error String) String -> msg)
@@ -518,7 +525,8 @@ trackString tracker toMsg req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting a string or `Req.Error` with custom error.
+-}
 trackStringWithError :
     String
     -> (Result (Error e) String -> msg)
@@ -533,7 +541,8 @@ trackStringWithError tracker toMsg errorDecoder req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting an arbitrary data or `Http.Error`.
+-}
 trackJsonCompatible :
     String
     -> (Result Http.Error a -> msg)
@@ -548,7 +557,8 @@ trackJsonCompatible tracker toMsg decoder req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting an arbitrary data or `Req.Error`.
+-}
 trackJson :
     String
     -> (Result (Error String) a -> msg)
@@ -567,7 +577,8 @@ trackJson tracker toMsg decoder req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting an arbitrary data or `Req.Error` with custom error.
+-}
 trackJsonWithError :
     String
     -> (Result (Error e) a -> msg)
@@ -602,7 +613,8 @@ trackString_ tracker toMsg resolve req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting an arbitrary data or `Http.Error`.
+-}
 trackBytesCompatible :
     String
     -> (Result Http.Error a -> msg)
@@ -617,7 +629,8 @@ trackBytesCompatible tracker toMsg decoder req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting an arbitrary data or `Req.Error`.
+-}
 trackBytes :
     String
     -> (Result (Error String) a -> msg)
@@ -636,7 +649,8 @@ trackBytes tracker toMsg decoder req =
         req
 
 
-{-| -}
+{-| Send a request for tracking, expecting an arbitrary data or `Req.Error` with custom error.
+-}
 trackBytesWithError :
     String
     -> (Result (Error e) a -> msg)
