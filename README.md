@@ -3,7 +3,7 @@ elm-req
 
 An experimental alternative for [elm/http](https://github.com/elm/http).
 
-**Warning: Not fully tested yet**
+**Warning: Not fully tested yet, and a big change coming soon!**
 
 
 ## Motivation
@@ -19,49 +19,49 @@ An experimental alternative for [elm/http](https://github.com/elm/http).
 
 ## Examples
 
-Create a task that works just like `get`.
+Create a task that can return `Http.Error`.
 
 ```elm
-getUserSimple : String -> Task Http.Error User
-getUserSimple userName =
-    Req.get ("https://api.github.com/users/" ++ userName)
-        |> Req.stringTask (Req.simplyResolveJson userDecoder)
+getRepoCompatible : String -> String -> Task Http.Error Repo
+getRepoCompatible userName repoName =
+    Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
+        |> Req.jsonCompatible repoDecoder
 ```
 
-Use `Req.Error` instead of `Http.Error` to get more information.
+Create a task that can return `Req.Error` which contains the full information.
 
 ```elm
-type Error a
+getRepo : String -> String -> Task (Req.Error String) Repo
+getRepo userName repoName =
+    Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
+        |> Req.json repoDecoder
+```
+
+```elm
+type alias Error a =
+    { request : Req
+    , error : Problem a
+    }
+
+type Problem a
     = BadUrl String
     | Timeout
     | NetworkError
     | BadStatus Http.Metadata a
     | BadBody Http.Metadata String
+```
 
+You can also decode error body using `*WithError` family.
 
+```elm
 getRepo : String -> String -> Task (Req.Error ErrorInfo) Repo
 getRepo userName repoName =
     Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.stringTask
-            (Req.resolveJson
-                { decoder = repoDecoder, errorDecoder = errorDecoder }
-            )
-```
+        |> Req.jsonWithError
+            { decoder = repoDecoder, errorDecoder = errorDecoder }
 
-Use `Req.ReqWithError` to get full information of the request.
-
-```elm
-type alias ReqWithError a =
-    { request : Req
-    , error : Error a
-    }
-
-
-getRepo : String -> String -> Task (Req.ReqWithError ErrorInfo) Repo
-getRepo userName repoName =
-    Req.get ("https://api.github.com/repos/" ++ userName ++ "/" ++ repoName)
-        |> Req.stringTask
-            (Req.resolveJsonWithReq
-                { decoder = repoDecoder, errorDecoder = errorDecoder }
-            )
+errorDecoder : Http.Metadata -> Decoder ErrorInfo
+errorDecoder meta =
+    D.map ErrorInfo
+        (D.field "message" D.string)
 ```
