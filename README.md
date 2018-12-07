@@ -49,7 +49,7 @@ getRepo userName repoName =
 ```elm
 type alias Error a =
     { request : Req
-    , error : Problem a
+    , problem : Problem a
     }
 
 type Problem a

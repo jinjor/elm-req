@@ -7,7 +7,7 @@ module Req exposing
     , stringCompatible, string, stringWithError
     , jsonCompatible, json, jsonWithError
     , bytesCompatible, bytes, bytesWithError
-    , whatever, toTaskFromString, toTaskFromBytes, toTask
+    , whatever, toTask
     , trackStringCompatible, trackString, trackStringWithError
     , trackJsonCompatible, trackJson, trackJsonWithError
     , trackBytesCompatible, trackBytes, trackBytesWithError
@@ -45,7 +45,7 @@ See more details in [elm/http](https://package.elm-lang.org/packages/elm/http/la
 @docs stringCompatible, string, stringWithError
 @docs jsonCompatible, json, jsonWithError
 @docs bytesCompatible, bytes, bytesWithError
-@docs whatever, toTaskFromString, toTaskFromBytes, toTask
+@docs whatever, toTask
 
 
 # Tracking
@@ -111,11 +111,11 @@ type Problem a
     | BadBody Http.Metadata String
 
 
-{-| Req with Error
+{-| Req with Problem
 -}
 type alias Error a =
     { request : Req
-    , error : Problem a
+    , problem : Problem a
     }
 
 
@@ -482,72 +482,6 @@ whatever :
     -> Task x msg
 whatever msg req =
     toTask (Http.bytesResolver (\res -> Ok msg)) req
-
-
-{-| Create a task from String body.
--}
-toTaskFromString :
-    { onGoodStatus : Http.Metadata -> String -> Result e a
-    , onBadStatus : Http.Metadata -> String -> Result e a
-    }
-    -> Req
-    -> Task (Error e) a
-toTaskFromString { onGoodStatus, onBadStatus } req =
-    toTask
-        (Http.stringResolver
-            (\res ->
-                Result.mapError (Error req) <|
-                    case res of
-                        Http.BadUrl_ url ->
-                            Err (BadUrl url)
-
-                        Http.Timeout_ ->
-                            Err Timeout
-
-                        Http.NetworkError_ ->
-                            Err NetworkError
-
-                        Http.BadStatus_ metadata body ->
-                            Result.mapError (BadStatus metadata) (onBadStatus metadata body)
-
-                        Http.GoodStatus_ metadata body ->
-                            Result.mapError (BadStatus metadata) (onGoodStatus metadata body)
-            )
-        )
-        req
-
-
-{-| Create a task from Bytes body.
--}
-toTaskFromBytes :
-    { onGoodStatus : Http.Metadata -> Bytes -> Result e a
-    , onBadStatus : Http.Metadata -> Bytes -> Result e a
-    }
-    -> Req
-    -> Task (Error e) a
-toTaskFromBytes { onGoodStatus, onBadStatus } req =
-    toTask
-        (Http.bytesResolver
-            (\res ->
-                Result.mapError (Error req) <|
-                    case res of
-                        Http.BadUrl_ url ->
-                            Err (BadUrl url)
-
-                        Http.Timeout_ ->
-                            Err Timeout
-
-                        Http.NetworkError_ ->
-                            Err NetworkError
-
-                        Http.BadStatus_ metadata body ->
-                            Result.mapError (BadStatus metadata) (onBadStatus metadata body)
-
-                        Http.GoodStatus_ metadata body ->
-                            Result.mapError (BadStatus metadata) (onGoodStatus metadata body)
-            )
-        )
-        req
 
 
 {-| Create a task with existing `Http.Resolver`.
