@@ -3,7 +3,18 @@ elm-req
 
 An experimental alternative for [elm/http](https://github.com/elm/http).
 
-**Warning**: Not battle tested yet. Use with care.
+**Warning: Not battle tested yet. Use with care.**
+
+**Note: If you use --debug, you'll need two extra dependency, `elm/file` and `elm/bytes`.**
+This is a workaround for a known `Map.!` bug. Move those into "direct" by running `elm install`.
+
+```
+elm install elm/file
+elm install elm/bytes
+```
+
+For more details, See [this issue](https://github.com/elm/compiler/issues/1864) or [this repo](https://github.com/jinjor/elm-map-sscce).
+
 
 ## Motivation
 
@@ -13,7 +24,6 @@ An experimental alternative for [elm/http](https://github.com/elm/http).
 - Get full information in requests/responses to describe errors.
 - Switch from `Cmd` to `Task` gradually (and vice versa).
 - Switch from `Http.Error` to custom error gradually.
-- Explicitly say what is risky.
 
 
 ## Examples
