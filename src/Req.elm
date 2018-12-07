@@ -381,7 +381,7 @@ json decoder req =
         (Http.stringResolver
             (resolveJson
                 { decoder = decoder
-                , errorDecoder = \meta body -> Json.Decode.succeed body
+                , errorDecoder = \meta body -> Ok body
                 }
                 req
             )
@@ -402,7 +402,9 @@ jsonWithError decoders req =
         (Http.stringResolver
             (resolveJson
                 { decoder = decoders.decoder
-                , errorDecoder = \meta body -> decoders.errorDecoder meta
+                , errorDecoder =
+                    \meta body ->
+                        Json.Decode.decodeString (decoders.errorDecoder meta) body
                 }
                 req
             )
@@ -571,7 +573,7 @@ trackJson tracker toMsg decoder req =
         toMsg
         (resolveJson
             { decoder = decoder
-            , errorDecoder = \meta body -> Json.Decode.succeed body
+            , errorDecoder = \meta body -> Ok body
             }
         )
         req
@@ -594,7 +596,9 @@ trackJsonWithError tracker toMsg decoders req =
         toMsg
         (resolveJson
             { decoder = decoders.decoder
-            , errorDecoder = \meta body -> decoders.errorDecoder meta
+            , errorDecoder =
+                \meta body ->
+                    Json.Decode.decodeString (decoders.errorDecoder meta) body
             }
         )
         req
@@ -805,7 +809,7 @@ resolveJsonCompatible decoder =
 
 resolveJson :
     { decoder : Json.Decode.Decoder a
-    , errorDecoder : Http.Metadata -> String -> Json.Decode.Decoder e
+    , errorDecoder : Http.Metadata -> String -> Result Json.Decode.Error e
     }
     -> Resolve String (Error e) a
 resolveJson { decoder, errorDecoder } req res =
@@ -821,7 +825,7 @@ resolveJson { decoder, errorDecoder } req res =
                 Err NetworkError
 
             Http.BadStatus_ metadata body ->
-                case Json.Decode.decodeString (errorDecoder metadata body) body of
+                case errorDecoder metadata body of
                     Ok a ->
                         Err (BadStatus metadata a)
 
