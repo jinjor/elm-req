@@ -342,6 +342,11 @@ string req =
 
 
 {-| Make a task that returns a string or `Req.Error` with custom error.
+Decoding errors will be a `BadBody` error.
+
+Note: This function assumes the error is always a JSON.
+If you are not sure, use `string` instead and decode the body later.
+
 -}
 stringWithError :
     (Http.Metadata -> Json.Decode.Decoder e)
@@ -390,6 +395,11 @@ json decoder req =
 
 
 {-| Make a task that returns an arbitrary data or `Req.Error` with custom error.
+Decoding errors will be a `BadBody` error.
+
+Note: This function assumes the error is always a JSON.
+If you are not sure, use `json` instead and decode the body later.
+
 -}
 jsonWithError :
     { decoder : Json.Decode.Decoder a
@@ -528,6 +538,11 @@ trackString tracker toMsg req =
 
 
 {-| Send a request for tracking, expecting a string or `Req.Error` with custom error.
+Decoding errors will be a `BadBody` error.
+
+Note: This function assumes the error is always a JSON.
+If you are not sure, use `trackString` instead and decode the body later.
+
 -}
 trackStringWithError :
     String
@@ -580,6 +595,11 @@ trackJson tracker toMsg decoder req =
 
 
 {-| Send a request for tracking, expecting an arbitrary data or `Req.Error` with custom error.
+Decoding errors will be a `BadBody` error.
+
+Note: This function assumes the error is always a JSON.
+If you are not sure, use `trackJson` instead and decode the body later.
+
 -}
 trackJsonWithError :
     String
