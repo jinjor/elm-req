@@ -1,4 +1,4 @@
-module Next.Req exposing (Builder)
+module Next.Req exposing (Body(..), Builder, Error, Expect(..), Init, Part(..), Problem(..), Request, absolute, bytesPart, delete, expectBytes, expectJson, filePart, from, get, init, map, mapError, mapProblem, patch, post, put, relative, send, setExpect, stringPart, toHttpBody, toHttpExpect, toHttpHeaders, toHttpPart, toResolver, toTask, withBytesBody, withCredentials, withFileBody, withHeader, withJsonBody, withMultipartBody, withStringBody, withTimeout)
 
 {-| WIP
 -}
@@ -30,7 +30,7 @@ type alias Request =
     }
 
 
-{-| Request
+{-| Builder
 -}
 type alias Builder e a =
     { method : String
@@ -90,48 +90,86 @@ type Expect e a
 
 
 -- INIT
+
+
+{-| -}
+type alias Init =
+    { get : List String -> Builder (Error String) String
+    , post : List String -> Builder (Error String) String
+    , put : List String -> Builder (Error String) String
+    , patch : List String -> Builder (Error String) String
+    , delete : List String -> Builder (Error String) String
+    , method : String -> List String -> Builder (Error String) String
+    }
+
+
+{-| -}
+from : String -> Init
+from root =
+    { get = get (Url.Builder.CrossOrigin root)
+    , post = post (Url.Builder.CrossOrigin root)
+    , put = put (Url.Builder.CrossOrigin root)
+    , patch = patch (Url.Builder.CrossOrigin root)
+    , delete = delete (Url.Builder.CrossOrigin root)
+    , method = init (Url.Builder.CrossOrigin root)
+    }
+
+
+{-| -}
+absolute : Init
+absolute =
+    { get = get Url.Builder.Absolute
+    , post = post Url.Builder.Absolute
+    , put = put Url.Builder.Absolute
+    , patch = patch Url.Builder.Absolute
+    , delete = delete Url.Builder.Absolute
+    , method = init Url.Builder.Absolute
+    }
+
+
+{-| -}
+relative : Init
+relative =
+    { get = get Url.Builder.Relative
+    , post = post Url.Builder.Relative
+    , put = put Url.Builder.Relative
+    , patch = patch Url.Builder.Relative
+    , delete = delete Url.Builder.Relative
+    , method = init Url.Builder.Relative
+    }
+
+
+
 -- METHOD
 
 
-{-| GET
--}
 get : Root -> List String -> Builder (Error String) String
 get root path =
-    init "GET" root path
+    init root "GET" path
 
 
-{-| POST
--}
 post : Root -> List String -> Builder (Error String) String
 post root path =
-    init "POST" root path
+    init root "POST" path
 
 
-{-| PUT
--}
 put : Root -> List String -> Builder (Error String) String
 put root path =
-    init "PUT" root path
+    init root "PUT" path
 
 
-{-| PATCH
--}
 patch : Root -> List String -> Builder (Error String) String
 patch root path =
-    init "PATCH" root path
+    init root "PATCH" path
 
 
-{-| DELETE
--}
 delete : Root -> List String -> Builder (Error String) String
 delete root path =
-    init "DELETE" root path
+    init root "DELETE" path
 
 
-{-| Arbitrary method
--}
-init : String -> Root -> List String -> Builder (Error String) String
-init method root path =
+init : Root -> String -> List String -> Builder (Error String) String
+init root method path =
     { method = method
     , root = root
     , path = path
